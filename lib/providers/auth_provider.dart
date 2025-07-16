@@ -1,5 +1,6 @@
 // providers/auth_provider.dart
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 
 enum AuthStatus {
@@ -30,6 +31,7 @@ class AuthProvider with ChangeNotifier {
   Future<void> initialAuthCheck() async {
     _status = AuthStatus.loading;
     notifyListeners();
+    SharedPreferences prefs = await SharedPreferences.getInstance();
 
     try {
       final String? storedToken = await _authService.getStoredToken();
@@ -47,8 +49,10 @@ class AuthProvider with ChangeNotifier {
           'email': storedEmail, // Include email if stored
         };
         _status = AuthStatus.authenticated;
+        await prefs.setBool("isAuthenticated", true);
       } else {
         _status = AuthStatus.unauthenticated;
+        await prefs.setBool("isAuthenticated", false);
       }
     } catch (e) {
       _errorMessage = 'Failed to load session: ${e.toString()}';
@@ -59,6 +63,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<bool> login(String identifier, String password) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
     _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
@@ -70,12 +75,14 @@ class AuthProvider with ChangeNotifier {
         _user = response['user'];
         _username = _user?['username'] ?? _user?['email'] ?? 'User';
         _status = AuthStatus.authenticated;
+        await prefs.setBool("isAuthenticated", true);
         notifyListeners();
         return true;
       } else {
         // This case should ideally be caught by the service throwing an exception
         _errorMessage = 'Login failed: ${response['message']}';
         _status = AuthStatus.error;
+        await prefs.setBool("isAuthenticated", false);
         notifyListeners();
         return false;
       }
@@ -87,12 +94,14 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
     _authService.logout(); // Call the service logout (e.g., clear token)
     _accessToken = null;
     _user = null;
     _username = null; 
     _status = AuthStatus.unauthenticated;
+    await prefs.setBool("isAuthenticated", false);
     notifyListeners();
   }
 

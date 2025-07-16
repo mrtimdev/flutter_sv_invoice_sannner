@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="SV Invoice Sannner"
+        android:label="SV Invoice Scanner"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

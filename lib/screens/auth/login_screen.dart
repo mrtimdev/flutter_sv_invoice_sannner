@@ -70,6 +70,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         _passwordController.text.trim(),
       );
 
+      debugPrint("log in clicked: $success username: $_identifierController pass: $_passwordController");
+
       if (success) {
         if (mounted) {
           // Navigate to home screen on successful login

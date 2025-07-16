@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart'; // For cool animations, add to pubspec.yaml
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/auth_provider.dart';
 import 'home_screen.dart';
@@ -21,16 +22,20 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   _navigateToHome() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool? isAuthenticated;
+    if (prefs.getBool("isAuthenticated") == true) {
+      isAuthenticated = true;
+    } else {
+      isAuthenticated = false;
+    }
     // Simulate some loading time or initialization
     await Future.delayed(const Duration(seconds: 3), () {}); // 3 seconds delay
 
-    if (!mounted) return; // Check if the widget is still in the tree
-
+    if (!mounted) return; 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    // In a real app, call a method like authProvider.tryAutoLogin();
-    // For now, we'll just check if they're authenticated (which they won't be unless you persist token)
 
-    if (authProvider.isAuthenticated) { // This will be false unless you've implemented token persistence
+    if (prefs.getBool("isAuthenticated") == true) { 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),

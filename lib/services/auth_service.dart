@@ -1,5 +1,6 @@
 // services/auth_service.dart
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart'; // Import for local storage
 
@@ -45,7 +46,8 @@ class AuthService {
   Future<Map> login(String identifier, String password) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? baseUrl = prefs.getString('baseUrl');
-    final url = Uri.parse('$baseUrl/auth/login'); // Changed to /login based on backend route
+    final url = Uri.parse('${baseUrl!}/auth/login'); 
+    debugPrint("url: $url");
     try {
       final response = await http.post(
         url,
@@ -90,7 +92,8 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_authTokenKey);
     await prefs.remove(_authUserIdKey);
-    await prefs.remove(_authUserEmailKey); // Clear all stored auth data
+    await prefs.remove(_authUserEmailKey); 
+    await prefs.remove("isAuthenticated"); 
     print('User data cleared and logged out');
   }
 
