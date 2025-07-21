@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../enum/dateFilter.dart';
 import '../models/scan_item.dart';
 
 class ScanService {
@@ -52,10 +53,48 @@ class ScanService {
     }
   }
 
-  /// Fetches a list of scans for the authenticated user from the backend.
-  /// Requires a valid JWT token stored in SharedPreferences.
-  /// Returns a list of maps, where each map represents a scan item.
-  Future<List<ScanItem>?> fetchScans() async {
+
+  Future<List<ScanItem>> fetchScans({
+    required DateFilter filter,
+    required String search,
+    String? before,
+    int limit = 20,
+  }) async {
+    final filterMap = {
+      DateFilter.today: 'today',
+      DateFilter.yesterday: 'yesterday',
+      DateFilter.last7Days: 'last7Days',
+      DateFilter.last30Days: 'last30Days',
+      DateFilter.all: '',
+    };
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? baseUrl = prefs.getString('baseUrl');
+    final String? accessToken = prefs.getString("auth_token");
+
+    final uri = Uri.parse('$baseUrl/scans').replace(queryParameters: {
+      if (filterMap[filter]!.isNotEmpty)
+        'filter': filterMap[filter]!,
+      if (search.isNotEmpty) 'search': search,
+      if (before != null) 'before': before,
+        'limit': '20',
+    });
+
+    final response = await http.get(uri, headers: {
+      'Authorization': 'Bearer $accessToken', // Add the Authorization header
+        'Content-Type': 'application/json',
+    });
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => ScanItem.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to fetch scans');
+    }
+  }
+
+  
+  Future<List<ScanItem>?> fetchScans_old() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? baseUrl = prefs.getString('baseUrl');
     try {
@@ -92,6 +131,11 @@ class ScanService {
       return null;
     }
   }
+
+
+
+  
+
 
 
   Future<ScanItem?> getScanById(String scanId) async {

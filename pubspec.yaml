@@ -90,6 +90,7 @@ flutter:
     - assets/animations/scanner_animation.json
     - assets/animations/scanner_animation_circle.json
     - assets/animations/animation01.json
+    - assets/images/not_found.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

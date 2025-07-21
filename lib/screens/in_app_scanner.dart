@@ -191,7 +191,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
         // The temporary file deletion will happen when _isScanning is set to false.
       } else if (imageFile.path.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No image path provided for preview.'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('No text recognized. Try a clearer image.'), backgroundColor: Colors.red),
         );
       }
 

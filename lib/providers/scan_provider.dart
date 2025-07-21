@@ -1,6 +1,7 @@
 // lib/providers/scan_provider.dart
 
 import 'package:flutter/material.dart';
+import '../enum/dateFilter.dart';
 import '../services/scan_service.dart'; 
 import '../models/scan_item.dart';
 
@@ -14,6 +15,13 @@ class ScanProvider with ChangeNotifier {
   bool _isFetchingScans = false;
   String? _errorMessage;
 
+  bool _isFetchingMore = false;
+  bool _hasMore = true;
+  String? _lastDateCursor;
+
+  
+
+
   ScanProvider(this._scanService); // Constructor now takes ScanService
 
   // State getters
@@ -21,7 +29,11 @@ class ScanProvider with ChangeNotifier {
   bool get isFetchingScans => _isFetchingScans;
   String? get errorMessage => _errorMessage;
   ScanItem? get scan => _scan;
+  bool get hasMore => _hasMore;
 
+
+
+  
   // Clear error message
   void _clearError() {
     if (_errorMessage != null) {
@@ -31,6 +43,55 @@ class ScanProvider with ChangeNotifier {
   }
 
   List<ScanItem> get scans => [..._scans]; // Return a copy
+
+
+
+  void resetPagination() {
+    _scans = [];
+    _lastDateCursor = null;
+    _hasMore = true;
+    _isFetchingMore = false;
+    notifyListeners();
+  }
+
+  Future<void> resetAndFetch(DateFilter filter, String search) async {
+    resetPagination();
+    fetchMoreScans(filter: filter, search: search, loadMore: false);
+  }
+
+  Future<void> fetchMoreScans({
+    required DateFilter filter,
+    required String search,
+    bool loadMore = false,
+    int limit = 20,
+  }) async {
+    if (_isFetchingMore || !_hasMore) return;
+    _isLoading = true;
+    _isFetchingMore = true;
+    notifyListeners();
+
+    try {
+      final newScans = await _scanService.fetchScans(
+        filter: filter,
+        search: search,
+        before: _lastDateCursor,
+        limit: limit
+      );
+
+      if (newScans.isNotEmpty) {
+        _scans.addAll(newScans);
+        _lastDateCursor = newScans.last.date.toIso8601String();
+      } else {
+        _hasMore = false;
+      }
+    } catch (e) {
+      print('Error fetching scans: $e');
+    } finally {
+      _isLoading = false;
+      _isFetchingMore = false;
+      notifyListeners();
+    }
+  }
 
   Future<Map<String, dynamic>?> saveScan(String imagePath, String recognizedText) async {
     // Instead of local storage, use the ScanService to upload
@@ -98,6 +159,17 @@ class ScanProvider with ChangeNotifier {
     }
   }
 
+
+  String getDateFilterText(DateFilter filter) {
+    switch (filter) {
+      case DateFilter.all: return 'All Scans';
+      case DateFilter.today: return 'Today';
+      case DateFilter.yesterday: return 'Yesterday';
+      case DateFilter.last7Days: return 'Last 7 Days';
+      case DateFilter.last30Days: return 'Last 30 Days';
+    }
+  }
+
   // Delete multiple scans
   Future<int?> deleteMultipleScans(List<int> ids) async {
     if (ids.isEmpty) return 0;
@@ -148,29 +220,29 @@ class ScanProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchScans() async {
-    _isLoading = true;
-    _isFetchingScans = true;
-    notifyListeners();
-    _clearError();
+  // Future<void> fetchScans_old() async {
+  //   _isLoading = true;
+  //   _isFetchingScans = true;
+  //   notifyListeners();
+  //   _clearError();
 
-    try {
-      final response = await _scanService.fetchScans();
+  //   try {
+  //     final response = await _scanService.fetchScans();
       
-      if (response == null) {
-        _errorMessage = 'Failed to load scans';
-      } else {
-        _scans = response;
-      }
-    } catch (e) {
-      _errorMessage = 'Error loading scans: ${e.toString()}';
-      _scans = []; // Clear scans on error
-    } finally {
-      _isLoading = false;
-      _isFetchingScans = false;
-      notifyListeners();
-    }
-  }
+  //     if (response == null) {
+  //       _errorMessage = 'Failed to load scans';
+  //     } else {
+  //       _scans = response;
+  //     }
+  //   } catch (e) {
+  //     _errorMessage = 'Error loading scans: ${e.toString()}';
+  //     _scans = []; // Clear scans on error
+  //   } finally {
+  //     _isLoading = false;
+  //     _isFetchingScans = false;
+  //     notifyListeners();
+  //   }
+  // }
   Future<ScanItem?> getScanById(String scanId) async {
     _isLoading = true;
     _isFetchingScans = true;

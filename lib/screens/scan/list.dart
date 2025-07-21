@@ -1,21 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sv_invoice_scanner/screens/scan/detail.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:intl/intl.dart';
 
-import '../../providers/scan_provider.dart';
+import '../../enum/dateFilter.dart';
 import '../../models/scan_item.dart';
-import 'detail.dart'; // Ensure correct import for ScanDetailScreen
-
-// Enum for date filter options
-enum DateFilter {
-  all,
-  today,
-  yesterday,
-  last7Days,
-  last30Days,
-}
+import '../../providers/scan_provider.dart';
+import '../in_app_scanner.dart';
 
 class ScansListScreen extends StatefulWidget {
   const ScansListScreen({super.key});
@@ -25,31 +17,32 @@ class ScansListScreen extends StatefulWidget {
 }
 
 class _ScansListScreenState extends State<ScansListScreen> {
-  // We no longer manage _isLoading directly here; ScanProvider handles it.
-  Map<DateTime, List<ScanItem>> _groupedAndFilteredScans = {};
-  TextEditingController _searchController = TextEditingController();
-  DateFilter _selectedDateFilter = DateFilter.all;
-  bool _isSearching = false; 
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+
+  DateFilter _selectedFilter = DateFilter.all;
+  String _searchTerm = "";
+  bool _isLoadingMore = false;
   String? _baseUrl = ""; 
   String? _rootUrl = "";
+
 
   @override
   void initState() {
     super.initState();
-    // Schedule the initial load after the first frame is built
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadScans();
-      _loadBaseUrl();
-    });
+    _loadBaseUrl();
+    final provider = Provider.of<ScanProvider>(context, listen: false);
+    provider.resetPagination();
 
-    _searchController.addListener(_onSearchChanged);
+    _fetchInitialData();
+
+    _scrollController.addListener(_onScroll);
   }
 
-  @override
-  void dispose() {
-    _searchController.removeListener(_onSearchChanged);
-    _searchController.dispose();
-    super.dispose();
+
+  Future<void> _fetchInitialData() async {
+    await Provider.of<ScanProvider>(context, listen: false)
+          .fetchMoreScans(filter: _selectedFilter, search: _searchTerm, loadMore: false);
   }
 
   Future<void> _loadBaseUrl() async {
@@ -68,372 +61,286 @@ class _ScansListScreenState extends State<ScansListScreen> {
     }
   }
 
-  // Called when the search text changes
-  void _onSearchChanged() {
-    // Debounce the search to prevent excessive rebuilds
-    // A simple debounce: apply filters after a short delay
-    if (_searchController.text.isEmpty && _groupedAndFilteredScans.isEmpty) {
-        // Optimization: if search is cleared and list is already empty, no need to re-filter
-        return;
+  void _onScroll() {
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    
+    // Load more when we're within 200 pixels of the start (which is the top in reverse mode)
+    if (maxScroll - currentScroll <= 200 && 
+        !_isLoadingMore &&
+        Provider.of<ScanProvider>(context, listen: false).hasMore) {
+      _loadMoreData();
     }
-    _applyFiltersAndGroupScans(Provider.of<ScanProvider>(context, listen: false).scans);
   }
 
-  // Toggles the visibility of the search bar
-  void _toggleSearch() {
-    setState(() {
-      _isSearching = !_isSearching;
-      if (!_isSearching) {
-        _searchController.clear(); // Clear search when hiding
-        _applyFiltersAndGroupScans(Provider.of<ScanProvider>(context, listen: false).scans); // Re-apply filters
-      }
-    });
-  }
-
-  // Helper to remove time part from DateTime for grouping and comparisons
-  DateTime _stripTime(DateTime dateTime) {
-    return DateTime(dateTime.year, dateTime.month, dateTime.day);
-  }
-
-  // Primary method to load scans from the provider and then apply filters and group
-  Future<void> _loadScans() async {
+  Future<void> _loadMoreData() async {
+    if (_isLoadingMore) return;
+    
+    setState(() => _isLoadingMore = true);
     try {
-      final scanProvider = Provider.of<ScanProvider>(context, listen: false);
-      await scanProvider.fetchScans(); // This fetches and updates provider's _scans list
-      _applyFiltersAndGroupScans(scanProvider.scans); // Apply filters and group
-    } catch (e) {
+      final provider = Provider.of<ScanProvider>(context, listen: false);
+      await provider.fetchMoreScans(
+        filter: _selectedFilter,
+        search: _searchTerm,
+        loadMore: true,
+      );
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load scans: ${e.toString()}')),
-        );
+        setState(() => _isLoadingMore = false);
       }
     }
   }
 
-  // Applies current filters (text and date) and then groups the scans
-  void _applyFiltersAndGroupScans(List<ScanItem> allScans) {
-    List<ScanItem> filteredScans = allScans;
+  void _onSearchChanged(String value) async {
+    _searchTerm = value.trim();
+    await Provider.of<ScanProvider>(context, listen: false)
+          .resetAndFetch(_selectedFilter, _searchTerm);
+  }
 
-    // 1. Apply Text Filter
-    if (_searchController.text.isNotEmpty) {
-      final searchText = _searchController.text.toLowerCase();
-      filteredScans = filteredScans.where((scan) {
-        return scan.scannedText.toLowerCase().contains(searchText);
-      }).toList();
-    }
-
-    // 2. Apply Date Filter
-    final now = _stripTime(DateTime.now());
-    filteredScans = filteredScans.where((scan) {
-      final scanDateOnly = _stripTime(scan.date);
-      switch (_selectedDateFilter) {
-        case DateFilter.all:
-          return true; // No date filter
-        case DateFilter.today:
-          return scanDateOnly == now;
-        case DateFilter.yesterday:
-          return scanDateOnly == now.subtract(const Duration(days: 1));
-        case DateFilter.last7Days:
-          return scanDateOnly.isAfter(now.subtract(const Duration(days: 7)));
-        case DateFilter.last30Days:
-          return scanDateOnly.isAfter(now.subtract(const Duration(days: 30)));
-      }
-    }).toList();
-
-    // 3. Group the filtered scans
-    final Map<DateTime, List<ScanItem>> tempGrouped = {};
-    for (var scan in filteredScans) {
-      final dateOnly = _stripTime(scan.date);
-      if (!tempGrouped.containsKey(dateOnly)) {
-        tempGrouped[dateOnly] = [];
-      }
-      tempGrouped[dateOnly]!.add(scan);
-    }
-
-    // Sort each group's scans by time descending
-    tempGrouped.forEach((key, value) {
-      value.sort((a, b) => b.date.compareTo(a.date));
-    });
-
-    // Sort the date keys (groups) themselves in descending order
-    final sortedKeys = tempGrouped.keys.toList()..sort((a, b) => b.compareTo(a));
-
-    final Map<DateTime, List<ScanItem>> finalGroupedScans = {};
-    for (var key in sortedKeys) {
-      finalGroupedScans[key] = tempGrouped[key]!;
-    }
-
+  void _onFilterChanged(DateFilter newFilter) async {
     setState(() {
-      _groupedAndFilteredScans = finalGroupedScans;
+      _selectedFilter = newFilter;
     });
-  }
-
-  Future<void> _confirmDeleteScan(int scanId) async {
-    final bool confirm = await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: const Text('Are you sure you want to delete this scan? This action cannot be undone.'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    ) ?? false;
-
-    if (confirm) {
-      final scanProvider = Provider.of<ScanProvider>(context, listen: false);
-      final bool? success = await scanProvider.deleteScan(scanId);
-      debugPrint("success: $success");
-      if (mounted) {
-        if (success == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Scan deleted successfully!')),
-          );
-          _applyFiltersAndGroupScans(scanProvider.scans); // Re-apply filters to updated list
-        } else if (success == false) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to delete scan. Scan not found or other issue.')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('An error occurred during deletion.')),
-          );
-        }
-      }
-    }
-  }
-
-  // Formats date for group headers (e.g., "Today", "Yesterday", "June 16, 2025")
-  String _formatDateForHeader(DateTime date) {
-    final now = _stripTime(DateTime.now());
-    final yesterday = _stripTime(now.subtract(const Duration(days: 1))); // Corrected for accurate yesterday
-
-    if (date == now) {
-      return 'Today';
-    } else if (date == yesterday) {
-      return 'Yesterday';
-    } else {
-      return DateFormat('MMMM d, y').format(date);
-    }
-  }
-
-  // Helper to get text for date filter chips
-  String _getDateFilterText(DateFilter filter) {
-    switch (filter) {
-      case DateFilter.all: return 'All Scans';
-      case DateFilter.today: return 'Today';
-      case DateFilter.yesterday: return 'Yesterday';
-      case DateFilter.last7Days: return 'Last 7 Days';
-      case DateFilter.last30Days: return 'Last 30 Days';
-    }
+    await Provider.of<ScanProvider>(context, listen: false)
+          .resetAndFetch(_selectedFilter, _searchTerm);
   }
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final provider = Provider.of<ScanProvider>(context);
+    final scans = provider.scans;
+    final isLoading = provider.isLoading;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Consumer<ScanProvider>(
-      builder: (context, scanProvider, child) {
-        // Re-apply filters and grouping whenever the provider's scan list changes
-        // This ensures filters are maintained even after new scans or deletions.
-        if (!scanProvider.isFetchingScans && scanProvider.scans.isNotEmpty && _groupedAndFilteredScans.isEmpty ||
-            (!scanProvider.isFetchingScans && _searchController.text.isEmpty && _selectedDateFilter == DateFilter.all && _groupedAndFilteredScans.length != scanProvider.scans.length))
-        {
-          // This ensures initial grouping or re-grouping if filter changes
-          // It's a bit of a heuristic. A more robust way might be to debounce
-          // this, or have a direct 'applyFilters' method in provider.
-          // For now, this handles initial load and filter changes.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _applyFiltersAndGroupScans(scanProvider.scans);
-          });
-        }
-
-
-        return Scaffold(
-          appBar: AppBar(
-            title: _isSearching
-                ? TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search scans...',
-                      hintStyle: TextStyle(color: colorScheme.onPrimary.withOpacity(0.7)),
-                      border: InputBorder.none,
-                      suffixIcon: IconButton(
-                        icon: Icon(Icons.clear, color: colorScheme.onPrimary),
-                        onPressed: () {
-                          _searchController.clear();
-                          _applyFiltersAndGroupScans(scanProvider.scans);
-                        },
-                      ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Your Scans"),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          _buildSearchAndFilter(colorScheme, provider),
+          Expanded(
+            child: Stack(
+              children: [
+                NotificationListener<ScrollNotification>(
+                  onNotification: (scrollNotification) {
+                    if (scrollNotification is ScrollEndNotification &&
+                        _scrollController.position.pixels ==
+                            _scrollController.position.minScrollExtent &&
+                        !_isLoadingMore) {
+                      provider.resetAndFetch(_selectedFilter, _searchTerm);
+                      return true;
+                    }
+                    return false;
+                  },
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      await provider.resetAndFetch(_selectedFilter, _searchTerm);
+                      if (_scrollController.hasClients) {
+                        _scrollController.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      }
+                    },
+                    displacement: 40,
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      reverse: false,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: scans.length + (_isLoadingMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index >= scans.length) {
+                          return _buildLoadMoreIndicator();
+                        }
+                        return _buildScanCard(context, scans[index], _rootUrl!);
+                      },
                     ),
-                    style: TextStyle(color: colorScheme.onPrimary, fontSize: 18),
-                    cursorColor: colorScheme.onPrimary,
-                  )
-                : const Text('My Scans'),
-            backgroundColor: colorScheme.primary,
-            foregroundColor: colorScheme.onPrimary,
-            elevation: 0,
-            actions: [
-              IconButton(
-                icon: Icon(_isSearching ? Icons.close : Icons.search),
-                onPressed: _toggleSearch,
-              ),
-              PopupMenuButton<DateFilter>(
-                icon: Icon(Icons.filter_list, color: colorScheme.onPrimary),
-                onSelected: (DateFilter filter) {
-                  setState(() {
-                    _selectedDateFilter = filter;
-                    _applyFiltersAndGroupScans(scanProvider.scans); // Re-apply filters
-                  });
-                },
-                itemBuilder: (BuildContext context) {
-                  return DateFilter.values.map((DateFilter filter) {
-                    return PopupMenuItem<DateFilter>(
-                      value: filter,
-                      child: Text(_getDateFilterText(filter)),
-                    );
-                  }).toList();
-                },
-              ),
-            ],
-          ),
-          body: Column(
-            children: [
-              // Date Filter Chips (below AppBar)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Row(
-                  children: DateFilter.values.map((filter) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: ChoiceChip(
-                        label: Text(_getDateFilterText(filter)),
-                        selected: _selectedDateFilter == filter,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              _selectedDateFilter = filter;
-                              _applyFiltersAndGroupScans(scanProvider.scans);
-                            });
-                          }
-                        },
-                        selectedColor: colorScheme.secondary.withOpacity(0.8),
-                        labelStyle: TextStyle(
-                          color: _selectedDateFilter == filter ? colorScheme.onSecondary : colorScheme.onSurface,
-                          fontWeight: _selectedDateFilter == filter ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        backgroundColor: colorScheme.surfaceVariant.withOpacity(0.3),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: _selectedDateFilter == filter ? colorScheme.secondary : colorScheme.outline.withOpacity(0.5),
-                            width: 1,
-                          ),
-                        ),
-                        elevation: _selectedDateFilter == filter ? 4 : 1,
-                      ),
-                    );
-                  }).toList(),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: scanProvider.isFetchingScans // Use provider's loading state
-                    ? Center(
-                        child: CircularProgressIndicator(color: colorScheme.primary),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadScans,
-                        color: colorScheme.primary,
-                        child: _groupedAndFilteredScans.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+
+                // Loading indicator for search
+                if (isLoading && !_isLoadingMore)
+                  const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+
+                // Empty state
+                if (!isLoading && !_isLoadingMore && scans.isEmpty)
+                  SingleChildScrollView(
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minHeight: MediaQuery.of(context).size.height - 100,
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Image illustration
+                            Image.asset(
+                              'assets/images/not_found.png',
+                              width: 200,
+                              height: 200,
+                              fit: BoxFit.contain,
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                              colorBlendMode: BlendMode.modulate,
+                            ),
+                            const SizedBox(height: 16),
+                            // Title with cool text style
+                            Text(
+                              'No Scans Found',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Description with dynamic text
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 48),
+                              child: Text(
+                                _searchTerm.isEmpty
+                                    ? 'Your scan history is empty'
+                                    : 'No matches for "$_searchTerm"',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Action button with nice elevation
+                            if (_searchTerm.isNotEmpty)
+                              ElevatedButton(
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _onSearchChanged('');
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                  foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                                  elevation: 1,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.image_not_supported_outlined, size: 80, color: colorScheme.onBackground.withOpacity(0.4)),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      _searchController.text.isNotEmpty || _selectedDateFilter != DateFilter.all
-                                          ? 'No matching scans found.'
-                                          : 'No scans yet!',
-                                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _searchController.text.isNotEmpty || _selectedDateFilter != DateFilter.all
-                                          ? 'Try adjusting your filters or search terms.'
-                                          : 'Start scanning to see your documents here.',
-                                      textAlign: TextAlign.center,
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.6)),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    ElevatedButton.icon(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                      },
-                                      icon: const Icon(Icons.document_scanner),
-                                      label: const Text('Scan New Document'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: colorScheme.secondary,
-                                        foregroundColor: colorScheme.onSecondary,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                      ),
-                                    )
+                                    Icon(Icons.clear_rounded, size: 20),
+                                    SizedBox(width: 5),
+                                    Text('Clear Search'),
                                   ],
                                 ),
                               )
-                            : ListView.builder(
-                                padding: const EdgeInsets.all(16.0),
-                                itemCount: _groupedAndFilteredScans.keys.length,
-                                itemBuilder: (context, groupIndex) {
-                                  final date = _groupedAndFilteredScans.keys.elementAt(groupIndex);
-                                  final scansForDate = _groupedAndFilteredScans[date]!;
-
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 12.0),
-                                        child: Text(
-                                          _formatDateForHeader(date),
-                                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: colorScheme.primary,
-                                              ),
-                                        ),
-                                      ),
-                                      ListView.builder(
-                                        shrinkWrap: true,
-                                        physics: const NeverScrollableScrollPhysics(),
-                                        itemCount: scansForDate.length,
-                                        itemBuilder: (context, scanIndex) {
-                                          final scan = scansForDate[scanIndex];
-                                          return _buildScanCard(context, scan, _rootUrl!);
-                                        },
-                                      ),
-                                      if (groupIndex < _groupedAndFilteredScans.keys.length - 1)
-                                        const Divider(height: 40, thickness: 0.5),
-                                    ],
+                            else
+                              FilledButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const ScanScreen()),
                                   );
                                 },
+                                style: FilledButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.document_scanner_rounded, size: 20),
+                                    SizedBox(width: 8),
+                                    Text('Scan Document'),
+                                  ],
+                                ),
                               ),
+                          ],
+                        ),
                       ),
-              ),
-            ],
+                    ),
+                  ),
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilter(ColorScheme colorScheme, ScanProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: "Search scans...",
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearchChanged('');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: DateFilter.values.map((filter) {
+                final bool isSelected = _selectedFilter == filter;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ChoiceChip(
+                    label: Text(provider.getDateFilterText(filter)),
+                    selected: isSelected,
+                    onSelected: (_) => _onFilterChanged(filter),
+                    selectedColor: colorScheme.primaryContainer,
+                    labelStyle: TextStyle(
+                      color: isSelected
+                          ? colorScheme.onPrimaryContainer
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -441,11 +348,10 @@ class _ScansListScreenState extends State<ScansListScreen> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final String timeAgoString = timeago.format(scan.date);
 
-    
-
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 4,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -521,5 +427,57 @@ class _ScansListScreenState extends State<ScansListScreen> {
         ),
       ),
     );
+  }
+
+
+  Future<void> _confirmDeleteScan(int scanId) async {
+    final bool confirm = await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: const Text('Are you sure you want to delete this scan? This action cannot be undone.'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (confirm) {
+      final scanProvider = Provider.of<ScanProvider>(context, listen: false);
+      final bool? success = await scanProvider.deleteScan(scanId);
+      debugPrint("success: $success");
+      if (mounted) {
+        if (success == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Scan deleted successfully!')),
+          );
+        } else if (success == false) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to delete scan. Scan not found or other issue.')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('An error occurred during deletion.')),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
   }
 }
