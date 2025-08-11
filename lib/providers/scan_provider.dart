@@ -1,9 +1,16 @@
 // lib/providers/scan_provider.dart
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:gallery_saver_plus/gallery_saver.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../enum/dateFilter.dart';
 import '../services/scan_service.dart'; 
 import '../models/scan_item.dart';
+
+import 'package:http/http.dart' as http;
 
 
 
@@ -19,6 +26,14 @@ class ScanProvider with ChangeNotifier {
   bool _hasMore = true;
   String? _lastDateCursor;
 
+  bool _isSavingImage = false;
+
+  bool get isSavingImage => _isSavingImage;
+
+  bool _showCropped = false;
+
+  bool get showCropped => _showCropped;
+
   
 
 
@@ -32,6 +47,15 @@ class ScanProvider with ChangeNotifier {
   bool get hasMore => _hasMore;
 
 
+  void toggleShowCropped() {
+    _showCropped = !_showCropped;
+    notifyListeners();
+  }
+
+  void setShowCropped(bool value) {
+    _showCropped = value;
+    notifyListeners();
+  }
 
   
   // Clear error message
@@ -93,9 +117,9 @@ class ScanProvider with ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>?> saveScan(String imagePath, String recognizedText) async {
+  Future<Map<String, dynamic>?> saveScan(String imagePath, String recognizedText, String scanType) async {
     // Instead of local storage, use the ScanService to upload
-    final responseData = await _scanService.uploadScan(imagePath, recognizedText);
+    final responseData = await _scanService.uploadScan(imagePath, recognizedText, scanType);
 
     if (responseData != null) {
       debugPrint("responseData: $responseData");
@@ -219,30 +243,6 @@ class ScanProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // Future<void> fetchScans_old() async {
-  //   _isLoading = true;
-  //   _isFetchingScans = true;
-  //   notifyListeners();
-  //   _clearError();
-
-  //   try {
-  //     final response = await _scanService.fetchScans();
-      
-  //     if (response == null) {
-  //       _errorMessage = 'Failed to load scans';
-  //     } else {
-  //       _scans = response;
-  //     }
-  //   } catch (e) {
-  //     _errorMessage = 'Error loading scans: ${e.toString()}';
-  //     _scans = []; // Clear scans on error
-  //   } finally {
-  //     _isLoading = false;
-  //     _isFetchingScans = false;
-  //     notifyListeners();
-  //   }
-  // }
   Future<ScanItem?> getScanById(String scanId) async {
     _isLoading = true;
     _isFetchingScans = true;
@@ -267,5 +267,90 @@ class ScanProvider with ChangeNotifier {
       _isFetchingScans = false;
       notifyListeners();
     }
+  }
+
+
+  Future<void> saveImageToGallery(
+    String imageUrl, {
+    BuildContext? context,
+  }) async {
+    if (_isSavingImage) return;
+    _isSavingImage = true;
+    notifyListeners();
+
+    try {
+      // Show downloading indicator if context is provided
+      if (context != null && mounted(context)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Downloading image...'),
+            backgroundColor: Colors.blue[800],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      // Check and request permissions
+      await _requestPermissions();
+
+      // Download the image
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download image');
+      }
+
+      // Save to temporary file
+      final directory = await getTemporaryDirectory();
+      final filePath = '${directory.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final tempFile = File(filePath);
+      await tempFile.writeAsBytes(response.bodyBytes);
+
+      // Save to gallery
+      final success = await GallerySaver.saveImage(tempFile.path);
+      if (success != true) {
+        throw Exception('Failed to save image to gallery');
+      }
+
+      // Show success message if context is provided
+      if (context != null && mounted(context)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Image saved to gallery!'),
+            backgroundColor: Colors.blue[600],
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      await tempFile.delete();
+    } catch (e) {
+      // Show error message if context is provided
+      if (context != null && mounted(context)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.blue[800],
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      rethrow; // Re-throw the error if you want to handle it elsewhere
+    } finally {
+      _isSavingImage = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _requestPermissions() async {
+    if (Platform.isAndroid) {
+      await Permission.storage.request();
+      await Permission.mediaLibrary.request();
+    }
+  }
+
+  // Helper method to check if widget is still mounted
+  static bool mounted(BuildContext context) {
+    return Navigator.of(context, rootNavigator: true).mounted;
   }
 }

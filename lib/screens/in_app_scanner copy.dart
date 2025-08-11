@@ -7,7 +7,6 @@ import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
-import 'package:sv_invoice_scanner/screens/components/settings.toggle.button.dart';
 import 'package:sv_invoice_scanner/screens/scan/list.dart';
 
 import '../providers/scan_provider.dart';
@@ -153,19 +152,33 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
       final Rect targetRegion = Rect.fromLTWH(
         0.0,          
         0.0,         
-        imageWidth,  
-        imageHeight,  
+        imageWidth,   
+        imageHeight, 
       );
+
 
       StringBuffer filteredTextBuffer = StringBuffer();
 
-      for (TextBlock block in recognizedText.blocks) {
-        if (targetRegion.overlaps(block.boundingBox)) {
-          for (TextLine line in block.lines) {
-            if (targetRegion.overlaps(line.boundingBox)) {
-              filteredTextBuffer.writeln(line.text);
-            }
-          }
+      // Sort blocks top-to-bottom, then left-to-right
+      final sortedBlocks = List<TextBlock>.from(recognizedText.blocks)
+        ..sort((a, b) {
+          // Compare top (y) first, then left (x)
+          int topCompare = a.boundingBox.top.compareTo(b.boundingBox.top);
+          if (topCompare != 0) return topCompare;
+          return a.boundingBox.left.compareTo(b.boundingBox.left);
+        });
+
+      for (TextBlock block in sortedBlocks) {
+        // Sort lines within block top-to-bottom, then left-to-right
+        final sortedLines = List<TextLine>.from(block.lines)
+          ..sort((a, b) {
+            int topCompare = a.boundingBox.top.compareTo(b.boundingBox.top);
+            if (topCompare != 0) return topCompare;
+            return a.boundingBox.left.compareTo(b.boundingBox.left);
+          });
+
+        for (TextLine line in sortedLines) {
+          filteredTextBuffer.writeln(line.text);
         }
       }
 
@@ -173,23 +186,8 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
       debugPrint("Scanned text in region: \n$scannedTextInRegion");
 
       if (scannedTextInRegion.isNotEmpty) {
-        // Check for KHB text if a specific template is selected
-        if (_selectedTemplate == 'KHB') {
-          if (!scannedTextInRegion.toUpperCase().contains('KHB')) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('The scanned document is not in "KHB" template.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-            return;
-          }
-        }
-
         // Use the filtered text for saving
-        final Map<String, dynamic>? uploadedScanItem = await provider.saveScan(imageFile.path, scannedTextInRegion, _selectedTemplate);
+        final Map<String, dynamic>? uploadedScanItem = await provider.saveScan(imageFile.path, scannedTextInRegion, "KHB");
         if (uploadedScanItem != null) {
           debugPrint("uploadedScanItem: $uploadedScanItem");
           ScaffoldMessenger.of(context).showSnackBar(
@@ -206,6 +204,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
               backgroundColor: Colors.red),
         );
       }
+      // --- END OF MODIFICATION FOR REGION-SPECIFIC SCANNING ---
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -314,7 +313,6 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          SettingsToggleButton(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: DropdownButton<String>(

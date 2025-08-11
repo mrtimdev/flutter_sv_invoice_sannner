@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:sv_invoice_scanner/screens/settings.screen.dart';
 import '../providers/theme_notifier.dart';
 import '../providers/auth_provider.dart'; // Import AuthProvider
 import 'auth/login_screen.dart';
@@ -215,6 +216,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       actions: [
+        IconButton(
+          icon: Icon(
+            Icons.settings,
+            color: Theme.of(context).colorScheme.onPrimary,
+          ), 
+          onPressed: () { Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SettingsScreen()),
+          ); },
+        ),
         IconButton(
           icon: Icon(
             themeNotifier.themeMode == ThemeMode.light

@@ -53,6 +53,9 @@ dependencies:
   timeago: ^3.7.1
   permission_handler: ^12.0.0+1
   camera_android_camerax: ^0.6.18+3
+  google_ml_kit: ^0.20.0
+  gallery_saver_plus: ^3.2.8
+  edge_detection_plus: ^1.0.2
 
 dev_dependencies:
   flutter_test:

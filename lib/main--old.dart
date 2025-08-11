@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
-import 'package:sv_invoice_scanner/providers/settings.provider.dart';
 import 'package:sv_invoice_scanner/screens/new_scan.dart';
 
 import 'providers/scan_provider.dart';
@@ -63,14 +62,11 @@ class MyApp extends StatelessWidget {
             Provider.of<AuthService>(context, listen: false),
           ),
         ),
-        ChangeNotifierProvider<SettingsProvider>(
-          create: (context) => SettingsProvider(),
-        ),
       ],
       child: Consumer<ThemeNotifier>( // Consumer to react to theme changes
         builder: (context, themeNotifier, child) {
           return MaterialApp(
-            title: 'SV Invoice Scanner',
+            title: 'Scan Pro',
             debugShowCheckedModeBanner: false, // Hide debug banner
             theme: ThemeData(
               // Define your primary blue
@@ -117,7 +113,7 @@ class MyApp extends StatelessWidget {
                 onPrimary: Colors.white,
                 secondary: const Color(0xFFD32F2F), // Darker red for dark mode
                 onSecondary: Colors.white,
-                surface: const Color.fromARGB(255, 45, 44, 44), // Dark background
+                surface: const Color(0xFF121212), // Dark background
                 onSurface: Colors.white70,
                 error: const Color(0xFFCF6679),
                 onError: Colors.black,

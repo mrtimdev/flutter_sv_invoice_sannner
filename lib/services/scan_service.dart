@@ -12,7 +12,7 @@ import '../models/scan_item.dart';
 class ScanService {
 
   
-  Future<Map<String, dynamic>?> uploadScan(String imagePath, String recognizedText) async {
+  Future<Map<String, dynamic>?> uploadScan(String imagePath, String recognizedText, String scanType) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? baseUrl = prefs.getString('baseUrl');
     try {
@@ -34,6 +34,7 @@ class ScanService {
 
       // Add the recognized text as a field
       request.fields['text'] = recognizedText;
+      request.fields['scanType'] = scanType;
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);

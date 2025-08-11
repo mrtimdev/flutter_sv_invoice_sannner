@@ -1,7 +1,8 @@
 // models/scan_item.dart
 class ScanItem {
   final int id;
-  final String imagePath; // Full URL from backend response
+  late final String imagePath; 
+  final String? croppedPath;
   final String scannedText;
   final String text;
   final DateTime date; 
@@ -10,6 +11,7 @@ class ScanItem {
   ScanItem({
     required this.id,
     required this.imagePath,
+    this.croppedPath,
     required this.scannedText,
     required this.text,
     required this.date,
@@ -19,11 +21,10 @@ class ScanItem {
   factory ScanItem.fromJson(Map<String, dynamic> json) {
     return ScanItem(
       id: json['id'] as int,
-      imagePath: json['imagePath'] as String, // Full URL
+      imagePath: json['imagePath'] as String, 
       scannedText: json['scannedText'] as String,
+      croppedPath: json['croppedPath'] as String?,
       text: json['scannedText'] as String,
-      // Parse the 'timestamp' or 'date' string to DateTime
-      // Assuming 'date' is preferred for the actual scan time
       date: DateTime.parse(json['date'] as String),
       user: ScanUser.fromJson(json['user'] as Map<String, dynamic>),
     );

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sv_invoice_scanner/models/user.model.dart';
+import 'package:sv_invoice_scanner/providers/auth_provider.dart';
 import 'package:sv_invoice_scanner/screens/scan/detail.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -26,6 +29,8 @@ class _ScansListScreenState extends State<ScansListScreen> {
   String? _baseUrl = ""; 
   String? _rootUrl = "";
 
+  bool _showCropped = false;
+
 
   @override
   void initState() {
@@ -36,7 +41,17 @@ class _ScansListScreenState extends State<ScansListScreen> {
 
     _fetchInitialData();
 
+    _requestPermissions();
+
     _scrollController.addListener(_onScroll);
+  }
+
+
+  Future<void> _requestPermissions() async {
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      await Permission.storage.request();
+      await Permission.mediaLibrary.request();
+    }
   }
 
 
@@ -105,17 +120,53 @@ class _ScansListScreenState extends State<ScansListScreen> {
           .resetAndFetch(_selectedFilter, _searchTerm);
   }
 
+  void _toggleImageView(BuildContext context) {
+    final provider = Provider.of<ScanProvider>(context, listen: false);
+    provider.toggleShowCropped();
+
+    final isCropped = provider.showCropped;
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(isCropped ? 'Showing Cropped Images' : 'Showing Original Images'),
+      duration: const Duration(seconds: 1),
+    ));
+  }
+
+
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ScanProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     final scans = provider.scans;
     final isLoading = provider.isLoading;
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final userMap = authProvider.user;
+    final user = User.fromJson(userMap!);
+    print("authProvider: $user");
+
+    final isCropped = provider.showCropped;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Your Scans"),
+        backgroundColor: isDark ? colorScheme.surfaceVariant : colorScheme.primary,
+        elevation: 4,
         centerTitle: true,
+        title: const Text(
+          "Your Scans",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: isCropped ? 'Show Original' : 'Show Cropped',
+            icon: Icon(isCropped ? Icons.crop : Icons.crop_original),
+            onPressed: () => _toggleImageView(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -155,7 +206,7 @@ class _ScansListScreenState extends State<ScansListScreen> {
                         if (index >= scans.length) {
                           return _buildLoadMoreIndicator();
                         }
-                        return _buildScanCard(context, scans[index], _rootUrl!);
+                        return _buildScanCard(context, scans[index], _rootUrl!, user);
                       },
                     ),
                   ),
@@ -344,14 +395,24 @@ class _ScansListScreenState extends State<ScansListScreen> {
     );
   }
 
-  Widget _buildScanCard(BuildContext context, ScanItem scan, String _rootUrl) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+  Widget _buildScanCard(BuildContext context, ScanItem scan, String _rootUrl, User user) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
     final String timeAgoString = timeago.format(scan.date);
 
+    final provider = Provider.of<ScanProvider>(context);
+    final isCropped = provider.showCropped;
+
+    String imagePath_ = isCropped && scan.croppedPath != null
+      ? scan.croppedPath!
+      : scan.imagePath;
+    final imagePath = '$_rootUrl${imagePath_}';
+    
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 4,
-      color: Colors.white,
+      color: isDark ? colorScheme.surface : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -371,7 +432,7 @@ class _ScansListScreenState extends State<ScansListScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  "${_rootUrl}${scan.imagePath}",
+                  imagePath,
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
@@ -379,7 +440,10 @@ class _ScansListScreenState extends State<ScansListScreen> {
                     width: 80,
                     height: 80,
                     color: colorScheme.surfaceVariant,
-                    child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.6)),
+                    child: Icon(
+                      Icons.broken_image, 
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                    ),
                   ),
                 ),
               ),
@@ -389,34 +453,37 @@ class _ScansListScreenState extends State<ScansListScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
+                      
                       scan.scannedText.length > 100
                           ? '${scan.scannedText.substring(0, 100)}...'
                           : scan.scannedText,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSurface,
-                          ),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                        fontFamily: 'NotoSansKhmer'
+                      ),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Scanned by ${scan.user.username ?? scan.user.email ?? 'Unknown User'}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.7),
-                          ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       timeAgoString,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.5),
-                            fontStyle: FontStyle.italic,
-                          ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.5),
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ],
                 ),
               ),
+              if(user.isAdmin)
               IconButton(
                 icon: Icon(Icons.delete_outline, color: colorScheme.error),
                 onPressed: () => _confirmDeleteScan(scan.id),

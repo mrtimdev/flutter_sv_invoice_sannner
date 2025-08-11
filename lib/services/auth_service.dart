@@ -8,7 +8,8 @@ class AuthService {
   static const String _authTokenKey = 'auth_token';
   static const String _authUserIdKey = 'auth_user_id';
   static const String _authUsernameKey = 'auth_username';
-  static const String _authUserEmailKey = 'auth_user_email'; // Example: store user email too
+  static const String _authUserEmailKey = 'auth_user_email'; 
+  static const String _auth = 'auth'; 
 
   // Method to save token and user ID after successful login
   Future<void> _saveAuthData(String token, Map<String, dynamic> user) async {
@@ -17,7 +18,15 @@ class AuthService {
     await prefs.setInt(_authUserIdKey, user['id']); 
     await prefs.setString(_authUserEmailKey, user['email']); 
     await prefs.setString(_authUsernameKey, user['username']); 
+    await prefs.setString(_auth, json.encode(user)); 
     // You can save other user data as needed, ensure data types match prefs methods
+  }
+
+  Future<Map<String, dynamic>?> getUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userJson = prefs.getString(_auth);
+    if (userJson == null) return null;
+    return json.decode(userJson) as Map<String, dynamic>;
   }
 
   // Method to retrieve stored token

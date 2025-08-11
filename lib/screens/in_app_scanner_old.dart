@@ -7,7 +7,6 @@ import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
-import 'package:sv_invoice_scanner/screens/components/settings.toggle.button.dart';
 import 'package:sv_invoice_scanner/screens/scan/list.dart';
 
 import '../providers/scan_provider.dart';
@@ -28,8 +27,6 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
   int _selectedCameraIndex = 0;
   late AnimationController _animationController;
   late Animation<double> _scanAnimation;
-
-  String _selectedTemplate = 'KHB';
 
   @override
   void initState() {
@@ -145,23 +142,40 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
       await textRecognizer.close();
 
-      if (!mounted) return; 
+      if (!mounted) return; // Check mounted before showing SnackBar
+
+      // --- START OF MODIFICATION FOR REGION-SPECIFIC SCANNING ---
+      // Define the target region (top right of the image based on visual inspection)
+      // These values need to be adjusted based on the actual image resolution
+      // and the exact coordinates of your green box.
+      // For best performance, the ML Kit processes the whole image, then we filter.
       final image = await decodeImageFromList(File(imageFile.path).readAsBytesSync());
       final double imageWidth = image.width.toDouble();
       final double imageHeight = image.height.toDouble();
 
+      // Approximate coordinates for the top-right green box based on the provided image
+      // Adjust these values as needed for your specific use case.
+      // final Rect targetRegion = Rect.fromLTWH(
+      //   imageWidth * 0.50, // Start from 50% of the width
+      //   0.0, // Start from the top
+      //   imageWidth * 1.0, // Width: 50% of the image
+      //   imageHeight * 0.30, // Height: 30% of the image
+      // );
       final Rect targetRegion = Rect.fromLTWH(
-        0.0,          
-        0.0,         
-        imageWidth,  
-        imageHeight,  
+        0.0,          // Start from the left
+        0.0,          // Start from the top
+        imageWidth,   // Full width of the image
+        imageHeight,  // Full height of the image
       );
+
 
       StringBuffer filteredTextBuffer = StringBuffer();
 
       for (TextBlock block in recognizedText.blocks) {
+        // Check if the block's bounding box intersects with the target region
         if (targetRegion.overlaps(block.boundingBox)) {
           for (TextLine line in block.lines) {
+            // Further filter by line to ensure it's truly within the region
             if (targetRegion.overlaps(line.boundingBox)) {
               filteredTextBuffer.writeln(line.text);
             }
@@ -173,23 +187,8 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
       debugPrint("Scanned text in region: \n$scannedTextInRegion");
 
       if (scannedTextInRegion.isNotEmpty) {
-        // Check for KHB text if a specific template is selected
-        if (_selectedTemplate == 'KHB') {
-          if (!scannedTextInRegion.toUpperCase().contains('KHB')) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('The scanned document is not in "KHB" template.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-            return;
-          }
-        }
-
         // Use the filtered text for saving
-        final Map<String, dynamic>? uploadedScanItem = await provider.saveScan(imageFile.path, scannedTextInRegion, _selectedTemplate);
+        final Map<String, dynamic>? uploadedScanItem = await provider.saveScan(imageFile.path, scannedTextInRegion, "KHB");
         if (uploadedScanItem != null) {
           debugPrint("uploadedScanItem: $uploadedScanItem");
           ScaffoldMessenger.of(context).showSnackBar(
@@ -206,6 +205,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
               backgroundColor: Colors.red),
         );
       }
+      // --- END OF MODIFICATION FOR REGION-SPECIFIC SCANNING ---
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -283,25 +283,6 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
     await _initializeCamera();
   }
 
-
-  void _handleTemplateChange(String template) {
-    // Handle the template selection here
-    debugPrint('Selected template: $template');
-
-    _selectedTemplate = template;
-    
-    // You might want to:
-    // 1. Update scanning parameters based on template
-    // 2. Change the scanning region
-    // 3. Adjust processing logic
-    // For example:
-    if (template == 'KHB') {
-      // Set KHB-specific settings
-    } else {
-      // Set Other template settings
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -314,35 +295,6 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver, Si
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          SettingsToggleButton(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: DropdownButton<String>(
-              value: _selectedTemplate, 
-              dropdownColor: Colors.grey[850],
-              icon: Icon(Icons.article_outlined, color: Colors.white),
-              iconSize: 24,
-              underline: Container(),
-              items: const [
-                DropdownMenuItem<String>(
-                  value: 'KHB',
-                  child: Text('KHB', style: TextStyle(color: Colors.white)),
-                ),
-                DropdownMenuItem<String>(
-                  value: 'Other',
-                  child: Text('Other', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _selectedTemplate = newValue;
-                  });
-                  _handleTemplateChange(newValue); 
-                }
-              },
-            ),
-          ),
           if (_cameras != null && _cameras!.length > 1)
             IconButton(
               icon: const Icon(Icons.flip_camera_ios_rounded, color: Colors.white),
