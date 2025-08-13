@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:sv_invoice_scanner/providers/settings.provider.dart';
+import 'package:sv_service_checker/providers/settings.provider.dart';
 
 class SettingsToggleButton extends StatefulWidget {
   const SettingsToggleButton({super.key});

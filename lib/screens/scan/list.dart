@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sv_invoice_scanner/models/user.model.dart';
-import 'package:sv_invoice_scanner/providers/auth_provider.dart';
-import 'package:sv_invoice_scanner/screens/scan/detail.dart';
+import 'package:sv_service_checker/models/user.model.dart';
+import 'package:sv_service_checker/providers/auth_provider.dart';
+import 'package:sv_service_checker/screens/scan/detail.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../enum/dateFilter.dart';

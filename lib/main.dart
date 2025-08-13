@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
-import 'package:sv_invoice_scanner/providers/settings.provider.dart';
-import 'package:sv_invoice_scanner/screens/new_scan.dart';
+import 'package:sv_service_checker/providers/settings.provider.dart';
+import 'package:sv_service_checker/screens/new_scan.dart';
 
 import 'providers/scan_provider.dart';
 import 'services/scan_service.dart';

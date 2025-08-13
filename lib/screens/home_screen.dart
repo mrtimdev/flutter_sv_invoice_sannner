@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
-import 'package:sv_invoice_scanner/screens/settings.screen.dart';
+import 'package:sv_service_checker/screens/settings.screen.dart';
 import '../providers/theme_notifier.dart';
 import '../providers/auth_provider.dart'; // Import AuthProvider
 import 'auth/login_screen.dart';
@@ -62,8 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildActionCard(
                         context,
                         icon: Icons.document_scanner,
-                        title: 'New Scan',
-                        subtitle: 'Capture and recognize text from documents or images instantly.',
+                        title: 'Check List',
+                        subtitle: 'Service checker.',
                         onTap: () {
                           if (authProvider.isAuthenticated) {
                             Navigator.push(

@@ -7,8 +7,8 @@ import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
-import 'package:sv_invoice_scanner/screens/components/settings.toggle.button.dart';
-import 'package:sv_invoice_scanner/screens/scan/list.dart';
+import 'package:sv_service_checker/screens/components/settings.toggle.button.dart';
+import 'package:sv_service_checker/screens/scan/list.dart';
 
 import '../providers/scan_provider.dart';
 

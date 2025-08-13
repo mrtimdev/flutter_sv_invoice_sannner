@@ -1,4 +1,4 @@
-name: sv_invoice_scanner
+name: sv_service_checker
 description: "Your Ultimate Scanning Solution."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
