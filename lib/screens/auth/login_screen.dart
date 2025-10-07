@@ -116,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 children: <Widget>[
                   // App Logo/Icon
                   Icon(
-                    Icons.qr_code_scanner, // Example icon, you can use an image asset
+                    Icons.checklist_rtl, // Example icon, you can use an image asset
                     size: 100,
                     color: colorScheme.primary,
                   ),
@@ -130,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   ),
                   const SizedBox(height: 16.0),
                   Text(
-                    'Sign in to continue to SV-Invoice Scanner',
+                    'Sign in to continue to SV-Service Checker',
                     style: textTheme.titleMedium?.copyWith(
                       color: colorScheme.onBackground.withOpacity(0.7),
                     ),
@@ -198,10 +198,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Please enter your password';
+                                    return 'Please enter your password';
                                 }
-                                if (value.length < 6) {
-                                  return 'Password must be at least 6 characters long';
+                                if (value.length < 3) {
+                                    return 'Password must be at least 3 or 6 characters long';
                                 }
                                 return null;
                               },

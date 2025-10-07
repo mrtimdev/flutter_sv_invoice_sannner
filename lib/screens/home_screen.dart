@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:sv_service_checker/screens/service_checkers/add.dart';
+import 'package:sv_service_checker/screens/service_checkers/form.dart';
 import 'package:sv_service_checker/screens/settings.screen.dart';
 import '../providers/theme_notifier.dart';
 import '../providers/auth_provider.dart'; // Import AuthProvider
 import 'auth/login_screen.dart';
+import 'drivers/index.dart';
 import 'in_app_scanner.dart';
 import 'scan/list.dart';
+import 'service_checkers/index.dart';
 // import 'scans_list_screen.dart'; // Future: Create a screen to list user's scans
 
 class HomeScreen extends StatefulWidget {
@@ -61,14 +65,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       _buildActionCard(
                         context,
-                        icon: Icons.document_scanner,
+                        icon: Icons.checklist_sharp,
                         title: 'Check List',
                         subtitle: 'Service checker.',
                         onTap: () {
                           if (authProvider.isAuthenticated) {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const ScanScreen()),
+                              MaterialPageRoute(builder: (_) => const ServiceCheckersIndex()),
                             );
                           } else {
                             _showAuthRequiredDialog(context);
@@ -80,16 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 20),
                       _buildActionCard(
                         context,
-                        icon: Icons.image,
-                        title: 'View Scans',
-                        subtitle: 'Browse your previously scanned images and text history.',
+                        icon: Icons.supervised_user_circle_outlined,
+                        title: 'Your Drivers',
+                        subtitle: 'Create or update driver`s info.',
                         onTap: () {
                           if (authProvider.isAuthenticated) {
-                            // Navigate to a screen that lists authenticated user's scans
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => const ScansListScreen()));
-                            // ScaffoldMessenger.of(context).showSnackBar(
-                            //   const SnackBar(content: Text('View Scans screen coming soon!')),
-                            // );
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => DriverIndexScreen()));
                           } else {
                             _showAuthRequiredDialog(context);
                           }
@@ -97,8 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
                         iconColor: Theme.of(context).colorScheme.secondary,
                       ),
-                      // const SizedBox(height: 20),
-                      // _buildInfoSection(context),
                     ],
                   ),
                 ),
@@ -111,14 +109,14 @@ class _HomeScreenState extends State<HomeScreen> {
               if (authProvider.isAuthenticated) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ScanScreen()),
+                  MaterialPageRoute(builder: (_) => ServiceCheckerForm()),
                 );
               } else {
                 _showAuthRequiredDialog(context);
               }
             },
             icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Start New Scan'),
+            label: const Text('Start New Check List'),
             backgroundColor: Theme.of(context).colorScheme.secondary,
             foregroundColor: Theme.of(context).colorScheme.onSecondary,
             elevation: 8,
@@ -162,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             Text(
-              'SV Invoice Scanner', // Main app title remains visible when collapsed
+              'SV Service Checker', // Main app title remains visible when collapsed
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onPrimary,
                 fontSize: 24,
@@ -199,19 +197,6 @@ class _HomeScreenState extends State<HomeScreen> {
               alignment: Alignment.centerRight,
               repeat: true,
             ),
-            // Align(
-            //   alignment: Alignment.bottomLeft,
-            //   child: Padding(
-            //     padding: const EdgeInsets.only(left: 20.0, bottom: 20.0),
-            //     child: Text(
-            //       'Your powerful text scanner',
-            //       style: TextStyle(
-            //         color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
-            //         fontSize: 16,
-            //       ),
-            //     ),
-            //   ),
-            // ),
           ],
         ),
       ),
@@ -339,44 +324,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildInfoSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20.0),
-      child: Column(
-        children: [
-          Text(
-            'About SV-Invoice Scanner',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onBackground,
-                ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Scan Pro helps you digitize your documents and extract text with ease. Powered by advanced machine learning, it offers quick and accurate results, saving you time and effort.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onBackground.withOpacity(0.8),
-                ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.security, color: Theme.of(context).colorScheme.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Data encrypted & secure',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onBackground.withOpacity(0.6),
-                    ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  
 
   // Helper method to show dialog when authentication is required
   void _showAuthRequiredDialog(BuildContext context) {

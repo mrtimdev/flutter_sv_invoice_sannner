@@ -35,12 +35,10 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final String? storedToken = await _authService.getStoredToken();
-      final int? storedUserId = await _authService.getStoredUserId();
       final String? storedUsername = await _authService.getStoredUsername(); 
-      final String? storedEmail = await _authService.getStoredUserEmail();
       _user = await _authService.getUser();
 
-      if (storedToken != null && storedUserId != null && storedUsername != null) {
+      if (storedToken != null && storedUsername != null) {
         _accessToken = storedToken;
         _username = storedUsername;
         _status = AuthStatus.authenticated;
@@ -66,7 +64,7 @@ class AuthProvider with ChangeNotifier {
     try {
       final response = await _authService.login(identifier, password);
       if (response['success'] == true) {
-        _accessToken = response['access_token'];
+        _accessToken = response['token'];
         _user = response['user'];
         _username = _user?['username'] ?? _user?['email'] ?? 'User';
         _status = AuthStatus.authenticated;

@@ -73,7 +73,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'SV-Invoice Scanner',
+              'SV Service Checker',
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,

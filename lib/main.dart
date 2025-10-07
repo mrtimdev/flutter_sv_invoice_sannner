@@ -5,7 +5,9 @@ import 'package:camera/camera.dart';
 import 'package:sv_service_checker/providers/settings.provider.dart';
 import 'package:sv_service_checker/screens/new_scan.dart';
 
+import 'providers/driver_provider.dart';
 import 'providers/scan_provider.dart';
+import 'providers/service_checker_provider.dart';
 import 'services/scan_service.dart';
 import 'providers/theme_notifier.dart'; // Make sure this exists
 import 'screens/home_screen.dart';
@@ -66,11 +68,13 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<SettingsProvider>(
           create: (context) => SettingsProvider(),
         ),
+        ChangeNotifierProvider(create: (_) => DriverProvider()),
+        ChangeNotifierProvider(create: (_) => ServiceCheckerProvider()),
       ],
       child: Consumer<ThemeNotifier>( // Consumer to react to theme changes
         builder: (context, themeNotifier, child) {
           return MaterialApp(
-            title: 'SV Invoice Scanner',
+            title: 'SV Service Checker',
             debugShowCheckedModeBanner: false, // Hide debug banner
             theme: ThemeData(
               // Define your primary blue

@@ -10,7 +10,7 @@
     <uses-feature android:name="android.hardware.camera.autofocus" />
 
     <application
-        android:label="SV Invoice Scanner"
+        android:label="SV Service Checker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
